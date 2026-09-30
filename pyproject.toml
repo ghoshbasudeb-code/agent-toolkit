@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-toolkit"
+version = "0.1.0"
+description = "Internal SDK and reusable building blocks for AI agents"
+dependencies = [
+    "langchain-core",
+    "langchain-openai",
+    "pydantic"
+
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent_sdk*"]
