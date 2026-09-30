@@ -1,17 +1,62 @@
+import os
+import json
+import requests
+from typing import Optional, Dict, Any, List
 from langchain_core.tools import tool
+from langchain_community.tools.tavily_search import TavilySearchResults
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+
 
 @tool
-def calculate_metrics(data_points: list[float]) -> dict:
+def calculate_metrics(data_points: List[float]) -> dict:
     """Calculates mean and total for a list of numeric values."""
     if not data_points:
         return {"mean": 0.0, "total": 0.0}
     return {
         "mean": sum(data_points) / len(data_points),
-        "total": sum(data_points)
+        "total": sum(data_points),
     }
+
 
 @tool
 def format_json_response(data: dict) -> str:
-    """Formats a dictionary into a clean string representation."""
-    import json
+    """Formats a dictionary into a clean JSON string representation."""
     return json.dumps(data, indent=2)
+
+
+@tool
+def search_web(query: str) -> str:
+    """Searches the live web for recent information or news using Tavily."""
+    search = TavilySearchResults(max_results=3)
+    results = search.invoke({"query": query})
+    return str(results)
+
+
+@tool
+def fetch_api_data(url: str, params: Optional[Dict[str, Any]] = None) -> str:
+    """Performs an HTTP GET request to fetch data from an external REST API endpoint."""
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        return response.text
+    except requests.RequestException as e:
+        return f"API request failed: {str(e)}"
+
+
+@tool
+def execute_sql_query(query: str, db_uri: str = "sqlite:///example.db") -> str:
+    """Executes a read-only SQL query against a database and returns the results."""
+    if not query.strip().lower().startswith("select"):
+        return "Error: Only read-only SELECT queries are allowed."
+
+    try:
+        engine = create_engine(db_uri)
+        with engine.connect() as connection:
+            result = connection.execute(text(query))
+            rows = result.fetchall()
+            keys = result.keys()
+            output = [dict(zip(keys, row)) for row in rows]
+            return str(output)
+    except SQLAlchemyError as e:
+        return f"Database query failed: {str(e)}"
