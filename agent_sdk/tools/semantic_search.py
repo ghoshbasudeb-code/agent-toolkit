@@ -62,3 +62,55 @@ def pinecone_semantic_search(query: str, top_k: int = 5) -> str:
 
     except Exception as e:
         return f"Semantic search query failed: {str(e)}"
+
+def _get_rag_resources(index_name: str = "dl-ai"):
+    """Lazy loader for SentenceTransformer model and Pinecone index."""
+    global _MODEL, _INDEX
+
+    if _MODEL is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        _MODEL = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+
+    if _INDEX is None:
+        api_key = os.getenv("PINECONE_API_KEY")
+        if not api_key:
+            raise ValueError("PINECONE_API_KEY environment variable is not set.")
+
+        pc = Pinecone(api_key=api_key)
+        _INDEX = pc.Index(index_name)
+
+    return _MODEL, _INDEX
+
+
+@tool
+def rag_search(query: str, top_k: int = 3) -> str:
+    """Performs retrieval-augmented generation (RAG) context lookup against a Pinecone 
+    index containing Wikipedia knowledge base entries."""
+    try:
+        model, index = _get_rag_resources()
+
+        # Embed query
+        query_embedding = model.encode([query]).tolist()[0]
+
+        # Query Pinecone index
+        response = index.query(vector=query_embedding, top_k=top_k, include_metadata=True)
+        matches = response.get("matches", [])
+
+        if not matches:
+            return "No relevant knowledge base articles found."
+
+        # Format retrieved context for the agent
+        retrieved_contexts = []
+        for match in matches:
+            metadata = match.get("metadata", {})
+            title = metadata.get("title", "Untitled")
+            url = metadata.get("url", "N/A")
+            text = metadata.get("text", "")
+            
+            context_entry = f"Title: {title}\nURL: {url}\nContent: {text}"
+            retrieved_contexts.append(context_entry)
+
+        return "\n\n-----\n\n".join(retrieved_contexts)
+
+    except Exception as e:
+        return f"RAG search query failed: {str(e)}"

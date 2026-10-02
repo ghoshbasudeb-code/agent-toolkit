@@ -13,6 +13,7 @@ from agent_sdk.tools import (
     execute_sql_query,
     query_knowledge_base,
     pinecone_semantic_search,
+    rag_search,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "execute_sql_query",
     "query_knowledge_base",
     "pinecone_semantic_search",
+    "rag_search",
 ]
