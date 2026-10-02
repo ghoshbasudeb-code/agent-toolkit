@@ -6,7 +6,8 @@ from langchain_core.tools import tool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-
+from langchain_community.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
 
 @tool
 def calculate_metrics(data_points: List[float]) -> dict:
@@ -60,3 +61,27 @@ def execute_sql_query(query: str, db_uri: str = "sqlite:///example.db") -> str:
             return str(output)
     except SQLAlchemyError as e:
         return f"Database query failed: {str(e)}"
+
+@tool
+def query_knowledge_base(query: str, db_path: str = "vectorstore") -> str:
+    """Queries a local vector database knowledge base to retrieve relevant context from custom documents."""
+    if not os.path.exists(db_path):
+        return f"Error: Vector store directory '{db_path}' not found."
+
+    try:
+        embeddings = OpenAIEmbeddings()
+        vectorstore = FAISS.load_local(
+            db_path, embeddings, allow_dangerous_deserialization=True
+        )
+        docs = vectorstore.similarity_search(query, k=3)
+
+        if not docs:
+            return "No relevant information found in the knowledge base."
+
+        # Format retrieved chunks
+        context = "\n\n".join(
+            [f"--- Chunk {i+1} ---\n{doc.page_content}" for i, doc in enumerate(docs)]
+        )
+        return context
+    except Exception as e:
+        return f"Failed to retrieve context: {str(e)}"
